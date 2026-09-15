@@ -1,0 +1,503 @@
+.movie-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at center,
+      #250000 0%,
+      #080000 35%,
+      #000000 75%
+    );
+
+  color: white;
+}
+
+
+/* =========================
+   BACKGROUND GLOW
+========================= */
+
+.red-glow {
+  position: absolute;
+
+  width: 500px;
+  height: 500px;
+
+  border-radius: 50%;
+
+  background: rgba(180, 0, 0, 0.18);
+
+  filter: blur(120px);
+
+  animation: backgroundPulse 3s ease-in-out infinite;
+}
+
+
+/* =========================
+   CONTENT
+========================= */
+
+.loader-content {
+  position: relative;
+
+  display: flex;
+  flex-direction: column;
+
+  align-items: center;
+}
+
+
+/* =========================
+   MAIN SCENE
+========================= */
+
+.loader-scene {
+  position: relative;
+
+  width: 330px;
+  height: 330px;
+}
+
+
+/* =========================
+   RED MOON
+========================= */
+
+.red-moon {
+  position: absolute;
+
+  top: 25px;
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  width: 210px;
+  height: 210px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle at 35% 30%,
+      #ff6b6b 0%,
+      #d00000 35%,
+      #650000 70%,
+      #180000 100%
+    );
+
+  box-shadow:
+    0 0 25px rgba(255, 0, 0, 0.7),
+    0 0 70px rgba(180, 0, 0, 0.5);
+
+  animation: moonPulse 3s ease-in-out infinite;
+}
+
+
+/* =========================
+   ENERGY RINGS
+========================= */
+
+.energy-ring {
+  position: absolute;
+
+  left: 50%;
+  top: 5px;
+
+  transform: translateX(-50%);
+
+  border-radius: 50%;
+
+  pointer-events: none;
+}
+
+
+.ring-one {
+  width: 260px;
+  height: 260px;
+
+  border: 3px solid transparent;
+
+  border-top-color: #ff5555;
+  border-right-color: #b00000;
+
+  box-shadow:
+    0 0 12px rgba(255, 0, 0, 0.8),
+    inset 0 0 10px rgba(255, 0, 0, 0.2);
+
+  animation: rotateRing 2.5s linear infinite;
+}
+
+
+.ring-two {
+  top: 12px;
+
+  width: 245px;
+  height: 245px;
+
+  border: 1px solid rgba(255, 50, 50, 0.45);
+
+  animation: rotateReverse 5s linear infinite;
+}
+
+
+/* =========================
+   WARRIOR
+========================= */
+
+.warrior {
+  position: absolute;
+
+  z-index: 10;
+
+  left: 50%;
+  bottom: 42px;
+
+  width: 150px;
+  height: 230px;
+
+  transform: translateX(-50%);
+
+  fill: #020202;
+
+  filter:
+    drop-shadow(0 0 10px rgba(0, 0, 0, 1))
+    drop-shadow(0 0 4px rgba(255, 0, 0, 0.15));
+
+  animation: warriorFloat 2.5s ease-in-out infinite;
+}
+
+
+/* =========================
+   GROUND
+========================= */
+
+.ground-glow {
+  position: absolute;
+
+  left: 50%;
+  bottom: 35px;
+
+  transform: translateX(-50%);
+
+  width: 190px;
+  height: 8px;
+
+  border-radius: 50%;
+
+  background: rgba(255, 0, 0, 0.6);
+
+  filter: blur(6px);
+
+  animation: groundPulse 1.5s ease-in-out infinite;
+}
+
+
+/* =========================
+   PARTICLES
+========================= */
+
+.particle {
+  position: absolute;
+
+  width: 4px;
+  height: 4px;
+
+  border-radius: 50%;
+
+  background: #ff3030;
+
+  box-shadow:
+    0 0 6px #ff0000,
+    0 0 12px #ff0000;
+
+  animation: particleFloat 2.5s ease-in-out infinite;
+}
+
+
+.particle-1 {
+  left: 20px;
+  top: 100px;
+}
+
+.particle-2 {
+  right: 20px;
+  top: 130px;
+
+  animation-delay: .4s;
+}
+
+.particle-3 {
+  left: 55px;
+  top: 40px;
+
+  animation-delay: .8s;
+}
+
+.particle-4 {
+  right: 55px;
+  top: 70px;
+
+  animation-delay: 1.2s;
+}
+
+.particle-5 {
+  left: 35px;
+  bottom: 90px;
+
+  animation-delay: 1.6s;
+}
+
+.particle-6 {
+  right: 40px;
+  bottom: 100px;
+
+  animation-delay: 2s;
+}
+
+
+/* =========================
+   LOADING TEXT
+========================= */
+
+.loading-text {
+  margin-top: -5px;
+
+  font-size: 14px;
+
+  font-weight: 300;
+
+  letter-spacing: 0.6em;
+
+  color: white;
+
+  text-shadow:
+    0 0 8px rgba(255, 0, 0, 0.5);
+
+  animation: textPulse 1.5s ease-in-out infinite;
+}
+
+
+.dots {
+  display: inline-block;
+
+  width: 25px;
+
+  animation: dotsAnimation 1.5s steps(4, end) infinite;
+}
+
+
+/* =========================
+   PROGRESS BAR
+========================= */
+
+.progress-container {
+  position: relative;
+
+  margin-top: 20px;
+
+  width: 250px;
+  height: 4px;
+
+  overflow: hidden;
+
+  border-radius: 20px;
+
+  background: #260000;
+
+  box-shadow:
+    0 0 5px rgba(255, 0, 0, 0.25);
+}
+
+
+.progress-bar {
+  position: absolute;
+
+  top: 0;
+  left: 0;
+
+  width: 45%;
+  height: 100%;
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      90deg,
+      #650000,
+      #ff2020,
+      #ff7070,
+      #b00000
+    );
+
+  box-shadow:
+    0 0 10px #ff0000,
+    0 0 20px rgba(255, 0, 0, 0.7);
+
+  animation: progressMove 1.8s ease-in-out infinite;
+}
+
+
+/* =========================
+   ANIMATIONS
+========================= */
+
+@keyframes backgroundPulse {
+  0%,
+  100% {
+    opacity: .5;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+
+@keyframes moonPulse {
+  0%,
+  100% {
+    transform: translateX(-50%) scale(1);
+  }
+
+  50% {
+    transform: translateX(-50%) scale(1.05);
+  }
+}
+
+
+@keyframes rotateRing {
+  from {
+    transform: translateX(-50%) rotate(0deg);
+  }
+
+  to {
+    transform: translateX(-50%) rotate(360deg);
+  }
+}
+
+
+@keyframes rotateReverse {
+  from {
+    transform: translateX(-50%) rotate(360deg);
+  }
+
+  to {
+    transform: translateX(-50%) rotate(0deg);
+  }
+}
+
+
+@keyframes warriorFloat {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  50% {
+    transform: translateX(-50%) translateY(-8px);
+  }
+}
+
+
+@keyframes groundPulse {
+  0%,
+  100% {
+    opacity: .5;
+    transform: translateX(-50%) scaleX(.85);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateX(-50%) scaleX(1.1);
+  }
+}
+
+
+@keyframes particleFloat {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(.4);
+  }
+
+  30% {
+    opacity: 1;
+  }
+
+  70% {
+    opacity: 1;
+    transform: translateY(-15px) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-40px) scale(.2);
+  }
+}
+
+
+@keyframes textPulse {
+  0%,
+  100% {
+    opacity: .6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+
+@keyframes dotsAnimation {
+  0% {
+    width: 0;
+  }
+
+  100% {
+    width: 25px;
+  }
+}
+
+
+@keyframes progressMove {
+  0% {
+    transform: translateX(-150%);
+  }
+
+  50% {
+    transform: translateX(100%);
+  }
+
+  100% {
+    transform: translateX(350%);
+  }
+}
+
+
+/* =========================
+   MOBILE
+========================= */
+
+@media (max-width: 500px) {
+
+  .loader-scene {
+    transform: scale(.8);
+  }
+
+  .loading-text {
+    margin-top: -45px;
+  }
+
+  .progress-container {
+    width: 200px;
+  }
+}
