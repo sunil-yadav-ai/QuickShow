@@ -3,11 +3,18 @@ import Express from 'express';
 import cors from 'cors';
 import 'dotenv/config';
 import mongoose from 'mongoose';
+import connectDB from './configs/db.js';
+
+import dns from "node:dns";
+
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 
 
 const app = Express();
 const port = 3000;
+
+
 
 app.use(Express.json())
 app.use(cors())
@@ -17,21 +24,17 @@ app.get('/',(req,res)=>{
     res.send("server is live....");
 })
 
-app.get('/home',(req,res)=>{
-    res.send("that is home route");
-})
 
-console.log(process.env.MONGO_URI)
-mongoose.connect(process.env.MONGO_URI)
-    .then(()=>
-        {
-            console.log("database is connected")
 
-        })
-    .catch((e)=>{
-        console.log(e)
-    })
+
 
 app.listen(port,()=>{
     console.log(`app is listing.... ${port}`)
 })
+
+
+
+
+
+
+await connectDB()
