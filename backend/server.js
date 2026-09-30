@@ -16,6 +16,11 @@ app.use(cors())
 app.get('/',(req,res)=>{
     res.send("server is live....");
 })
+
+app.get('/home',(req,res)=>{
+    res.send("that is home route");
+})
+
 console.log(process.env.MONGO_URI)
 mongoose.connect(process.env.MONGO_URI)
     .then(()=>
