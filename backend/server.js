@@ -10,6 +10,7 @@ import dns from "node:dns";
 import { serve } from "inngest/express";
 import { inngest } from "./inggest/client.js";
 import { functions } from "./inggest/functions.js";
+import showRouter from "./routes/showRoute.js";
 
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
@@ -35,6 +36,8 @@ app.use(
     functions,
   })
 );
+
+app.use('/api/show',showRouter)
 
 // MongoDB
 await connectDB();
