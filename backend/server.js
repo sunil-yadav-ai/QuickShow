@@ -11,6 +11,7 @@ import { serve } from "inngest/express";
 import { inngest } from "./inggest/client.js";
 import { functions } from "./inggest/functions.js";
 import showRouter from "./routes/showRoute.js";
+import bookingRouter from "./routes/bookingRoutes.js";
 
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
@@ -30,9 +31,7 @@ app.get("/", (req, res) => {
 
 
 
-app.get("/home", (req, res) => {
-  res.send("server is live....");
-});
+
 
 
 
@@ -49,6 +48,7 @@ app.use(
 );
 
 app.use('/api/show',showRouter)
+app.use('/api/booking',bookingRouter)
 
 // MongoDB
 await connectDB();
