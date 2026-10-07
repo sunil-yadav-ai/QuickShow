@@ -29,6 +29,10 @@ app.get("/", (req, res) => {
   res.send("server is live....");
 });
 
+app.get("/home", (req, res) => {
+  res.send("server is live....");
+});
+
 
 
 
