@@ -5,14 +5,7 @@ import Movie from "../models/movie.js";
 // API to get user bookings
 export const getUserBookings = async (req, res) => {
   try {
-    const { userId } = req.auth();
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Please login first",
-      });
-    }
+    const { userId } = res.locals;
 
     const bookings = await Booking.find({ user: userId })
       .populate({
@@ -45,15 +38,8 @@ export const getUserBookings = async (req, res) => {
 // API to add or remove a favorite movie
 export const updateFavorite = async (req, res) => {
   try {
-    const { userId } = req.auth();
+    const { userId } = res.locals;
     const { movieId } = req.body;
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Please login first",
-      });
-    }
 
     if (!movieId) {
       return res.status(400).json({
@@ -103,14 +89,7 @@ export const updateFavorite = async (req, res) => {
 // API to get favorite movies
 export const getFavorites = async (req, res) => {
   try {
-    const { userId } = req.auth();
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Please login first",
-      });
-    }
+    const { userId } = res.locals;
 
     const user = await clerkClient.users.getUser(userId);
 
