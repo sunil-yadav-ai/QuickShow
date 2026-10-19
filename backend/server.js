@@ -41,6 +41,10 @@ app.get("/", (req, res) => {
     res.send("Server is live!");
 });
 
+app.get("/", (req, res) => {
+    res.send("Server is live!");
+});
+
 // Inngest
 app.use(
     "/api/inngest",
