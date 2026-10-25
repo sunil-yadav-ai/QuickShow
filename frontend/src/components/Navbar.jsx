@@ -3,10 +3,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { assets } from '../assets/assets'
 import { MenuIcon, SearchIcon, TicketPlus, XIcon } from 'lucide-react'
 import { useClerk, UserButton, useUser } from '@clerk/react'
+import { useAppContext } from '../context/AppContex'
 
 const Navbar = () => {
     const [isOpen, setOpen] = useState(false)
     const naviage = useNavigate()
+    const {favoriteMovies} = useAppContext()
 
     const {user} = useUser()
     const {openSignIn} = useClerk()
@@ -57,9 +59,9 @@ const Navbar = () => {
                     Releases
                 </Link>
 
-                <Link onClick={closeMenu} to="/favorite">
+                { favoriteMovies.length > 0 && <Link onClick={closeMenu} to="/favorite">
                     Favorites
-                </Link>
+                </Link>}
 
             </div>
 
