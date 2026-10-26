@@ -16,11 +16,15 @@ import showRouter from "./routes/showRoute.js";
 import bookingRouter from "./routes/bookingRoutes.js";
 import adminRouter from "./routes/adminRoutes.js";
 import userRouter from "./routes/userRoutes.js";
+import { stripeWebhooks } from "./controllers/stripeWebhooks.js";
 
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
 const app = Express();
 const port = 3000;
+
+//stripe webhooks route
+app.use('/api/stripe',Express.raw({type:'application/json'}),stripeWebhooks)
 
 // Basic middleware
 app.use(Express.json());
@@ -41,9 +45,7 @@ app.get("/", (req, res) => {
     res.send("Server is live!");
 });
 
-app.get("/", (req, res) => {
-    res.send("Server is live!");
-});
+
 
 // Inngest
 app.use(

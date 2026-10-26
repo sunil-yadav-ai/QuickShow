@@ -3,6 +3,7 @@
 import mongoose from "mongoose";
 import Show from "../models/show.js"
 import Booking from "../models/booking.js";
+import stripe from 'stripe'
 
 
 const checkSeatsAvailability = async (showId,selectedSeats)=>{
@@ -58,8 +59,40 @@ export const createBooking = async (req,res)=>{
         await showData.save();
 
         //stripe gateway
+        const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY)
+        //creating line items to for stripe
+        const line_items = [{
+            price_data:{
+                
+                currency:'aud',
+                product_data:{
+                    name:showData.movie.title
+                },
+                unit_amount:Math.floor(booking.amount) * 100
+            },
+            quantity:1
+        }]
 
-        res.json({success:true,message:'booked successfully'})
+        const session = await stripeInstance.checkout.sessions.create({
+            success_url:`${origin}/loading/my-bookings`,
+
+            cancel_url:`${origin}/my-bookings`,
+            line_items:line_items,
+            mode:'payment',
+            metadata:{
+                bookingId:booking._id.toString()
+            },
+            expires_at:Math.floor(Date.now() / 1000) + 30 * 60, //Expires in 30 minutes
+
+        })
+
+        booking.paymentLink = session.url
+        await booking.save()
+
+
+
+
+        res.json({success:true,url:session.url})
 
 
 

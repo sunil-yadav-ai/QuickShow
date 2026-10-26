@@ -1,7 +1,19 @@
-import React from "react";
+import React, { useEffect } from "react";
 import "./Loading.css";
+import { useNavigate, useParams } from "react-router-dom";
 
 const Loading = () => {
+  const {nextUrl} = useParams()
+  const naviagte = useNavigate()
+
+  useEffect(()=>{
+    if(nextUrl){
+      setTimeout(()=>{
+        naviagte('/' + nextUrl)
+      },8000)
+    }
+
+  },[])
   return (
     <div className="movie-loader">
 

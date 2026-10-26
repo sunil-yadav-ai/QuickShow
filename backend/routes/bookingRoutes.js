@@ -4,7 +4,7 @@ import { requireAuthenticatedUser } from "../middleware/auth.js";
 
 const bookingRouter = express.Router();
 
-bookingRouter.post("/crate", requireAuthenticatedUser, createBooking);
+bookingRouter.post("/create", requireAuthenticatedUser, createBooking);
 bookingRouter.get('/seats/:showId',getOccupiedSeats);
 
 export default bookingRouter;
