@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import Show from "../models/show.js"
 import Booking from "../models/booking.js";
 import stripe from 'stripe'
+import { inngest } from "../inggest/client.js";
 
 
 const checkSeatsAvailability = async (showId,selectedSeats)=>{
