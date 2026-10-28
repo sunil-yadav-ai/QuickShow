@@ -1,50 +1,67 @@
-import { useEffect, useState } from "react";
-import React from "react";
-import { dummyBookingData } from "../assets/assets";
+import React, { useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import Loading from "../components/Loading";
 import BlurCircle from "../components/BlurCircle";
 import timeFormat from "../lib/timeFormat";
 import { dateFormat } from "../lib/dateFormat";
-import { useAppContext} from '../context/AppContex'
-import { Link } from "react-router-dom";
+import { useAppContext } from "../context/AppContex";
 
 const MyBookings = () => {
     const currency = import.meta.env.VITE_CURRENCY;
     const [bookings, setBookings] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [searchParams] = useSearchParams();
+    const checkoutSessionId = searchParams.get("session_id");
     const {
-    
-    axios,
-    getToken,
-    user,
-    
-    image_base_url
-} = useAppContext();
+        axios,
+        getToken,
+        user,
+        isLoaded,
+        image_base_url,
+    } = useAppContext();
+    const isPageLoading = !isLoaded || (Boolean(user) && isLoading);
 
-    const getMyBookings = async () => {
-        try{
-            const { data} = await axios.get('/api/user/bookings',{headers:{Authorization:`Bearer ${await getToken()}`}})
+    const getMyBookings = useCallback(async () => {
+        try {
+            const token = await getToken();
+            const headers = { Authorization: `Bearer ${token}` };
 
-            if(data.success){
-                setBookings(data.bookings)
+            if (checkoutSessionId) {
+                try {
+                    await axios.post(
+                        "/api/booking/verify-payment",
+                        { sessionId: checkoutSessionId },
+                        { headers },
+                    );
+                } catch (verificationError) {
+                    console.error(
+                        "Checkout payment verification failed:",
+                        verificationError.response?.data?.message ||
+                            verificationError.message,
+                    );
+                }
             }
 
-        }catch(e){
-            console.log(e)
+            const { data } = await axios.get("/api/user/bookings", { headers });
 
+            if (data.success) {
+                setBookings(data.bookings);
+            }
+        } catch (error) {
+            console.error("Fetch bookings failed:", error);
+        } finally {
+            setIsLoading(false);
         }
-        setIsLoading(false)
-    };
+    }, [axios, checkoutSessionId, getToken]);
 
     useEffect(() => {
-        if(user){
-        getMyBookings();
+        if (user) {
+            getMyBookings();
         }
-    }, [user]);
+    }, [user, getMyBookings]);
 
-    return !isLoading ? (
+    return !isPageLoading ? (
         <div className="relative px-6 md:px-16 lg:px-40 pt-30 md:pt-40 min-h-[80vh]">
-
             <BlurCircle top="100px" left="100px" />
 
             <div>
@@ -55,15 +72,12 @@ const MyBookings = () => {
                 My Booking
             </h1>
 
-            {bookings.map((item, index) => (
+            {bookings.map((item) => (
                 <div
-                    key={index}
+                    key={item._id}
                     className="flex flex-col md:flex-row justify-between bg-primary/8 border border-primary/20 rounded-lg mt-4 p-2 max-w-3xl"
                 >
-
-                    {/* Movie Details */}
                     <div className="flex flex-col md:flex-row">
-
                         <img
                             src={image_base_url + item.show.movie.poster_path}
                             className="md:max-w-45 aspect-video h-auto object-cover object-bottom rounded"
@@ -83,18 +97,28 @@ const MyBookings = () => {
                                 {dateFormat(item.show.showDateTime)}
                             </p>
                         </div>
-
                     </div>
 
-                    {/* Booking Details */}
                     <div className="flex flex-col md:items-end md:text-right justify-between p-4">
-
                         <div>
                             <p className="text-2xl font-semibold mb-3">
                                 {currency}{item.amount}
                             </p>
 
-                            
+                            {item.isPaid ? (
+                                <span className="inline-block text-green-400 text-sm mb-3">
+                                    Paid / Confirmed
+                                </span>
+                            ) : item.paymentLink ? (
+                                <span className="inline-block text-yellow-300 text-sm mb-3">
+                                    Payment pending
+                                </span>
+                            ) : (
+                                <span className="inline-block text-gray-400 text-sm mb-3">
+                                    Payment unavailable
+                                </span>
+                            )}
+
                             {!item.isPaid && item.paymentLink && (
                                 <a
                                     href={item.paymentLink}
@@ -103,8 +127,6 @@ const MyBookings = () => {
                                     Pay Now
                                 </a>
                             )}
-
-
                         </div>
 
                         <div className="text-sm">
@@ -122,12 +144,9 @@ const MyBookings = () => {
                                 {item.bookedSeats.join(", ")}
                             </p>
                         </div>
-
                     </div>
-
                 </div>
             ))}
-
         </div>
     ) : (
         <Loading />

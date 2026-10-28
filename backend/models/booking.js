@@ -30,8 +30,23 @@ const bookingSchema = new mongoose.Schema({
     paymentLink:{
         type:String,
         default:""
-        
-        
+    },
+    stripeSessionId:{
+        type:String,
+        default:""
+    },
+    confirmationEmailStatus:{
+        type:String,
+        enum:["pending","sending","sent"],
+        default:"pending"
+    },
+    confirmationEmailClaimedAt:{
+        type:Date,
+        default:null
+    },
+    confirmationEmailSentAt:{
+        type:Date,
+        default:null
     },
 
 },{timestamps:true})

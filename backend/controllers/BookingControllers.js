@@ -1,10 +1,12 @@
 //function t check availablity of selected seats for a movie
 
-import mongoose from "mongoose";
 import Show from "../models/show.js"
 import Booking from "../models/booking.js";
-import stripe from 'stripe'
 import { inngest } from "../inggest/client.js";
+import {
+    processPaidCheckoutSession,
+    stripe,
+} from "../services/bookingPayment.js";
 
 
 const checkSeatsAvailability = async (showId,selectedSeats)=>{
@@ -27,26 +29,65 @@ const checkSeatsAvailability = async (showId,selectedSeats)=>{
 }
 
 export const createBooking = async (req,res)=>{
+    let booking;
+    let showData;
+    let session;
+
     try{
         const {userId} = res.locals;
         const {showId,selectedSeats} = req.body;
-        const {origin } = req.headers;
+        const frontendUrl = process.env.FRONTEND_URL;
+
+        if (
+            !showId ||
+            !Array.isArray(selectedSeats) ||
+            selectedSeats.length < 1 ||
+            selectedSeats.length > 5 ||
+            selectedSeats.some((seat) => typeof seat !== "string" || !seat.trim()) ||
+            new Set(selectedSeats).size !== selectedSeats.length
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: "Select between 1 and 5 unique seats.",
+            });
+        }
+
+        if (!frontendUrl) {
+            throw new Error("FRONTEND_URL is not configured");
+        }
+
+        const frontendOrigin = new URL(frontendUrl).origin;
 
         //check if the set is available for the selected show
         const isAvailable = await checkSeatsAvailability(showId,selectedSeats)
 
         if(!isAvailable){
-            return res.json({success:false,message:"selected seats are not available."})
+            return res.status(409).json({success:false,message:"selected seats are not available."})
         }
 
         //get the show details
-        const showData = await Show.findById(showId).populate('movie');
+        showData = await Show.findById(showId).populate('movie');
+        if (!showData?.movie) {
+            return res.status(404).json({
+                success: false,
+                message: "Show or movie not found.",
+            });
+        }
+
+        const amount = Math.round(showData.showPrice * selectedSeats.length * 100) / 100;
+        if (!Number.isFinite(amount) || amount <= 0) {
+            return res.status(400).json({
+                success: false,
+                message: "Show price is invalid.",
+            });
+        }
+
         //create a new booking
 
-        const booking = await Booking.create({
+        booking = await Booking.create({
             user:userId,
             show:showId,
-            amount:showData.showPrice * selectedSeats.length,
+            amount,
             bookedSeats:selectedSeats
 
 
@@ -59,8 +100,6 @@ export const createBooking = async (req,res)=>{
         showData.markModified('occupiedSeats');
         await showData.save();
 
-        //stripe gateway
-        const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY)
         //creating line items to for stripe
         const line_items = [{
             price_data:{
@@ -69,15 +108,14 @@ export const createBooking = async (req,res)=>{
                 product_data:{
                     name:showData.movie.title
                 },
-                unit_amount:Math.floor(booking.amount) * 100
+                unit_amount:Math.round(booking.amount * 100)
             },
             quantity:1
         }]
 
-        const session = await stripeInstance.checkout.sessions.create({
-            success_url:`${origin}/loading/my-bookings`,
-
-            cancel_url:`${origin}/my-bookings`,
+        session = await stripe.checkout.sessions.create({
+            success_url:`${frontendOrigin}/my-bookings?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url:`${frontendOrigin}/my-bookings?payment=cancelled`,
             line_items:line_items,
             mode:'payment',
             metadata:{
@@ -88,14 +126,22 @@ export const createBooking = async (req,res)=>{
         })
 
         booking.paymentLink = session.url
+        booking.stripeSessionId = session.id
         await booking.save()
-        //run inngest sheduler function to check payment status after 10min
-        await inngest.send({
-            name:"app/checkpayment",
-            data:{
-                bookingId:booking._id.toString()
-            }
-        })
+        // Stripe Checkout sessions expire after at least 30 minutes.
+        try {
+            await inngest.send({
+                name:"app/checkpayment",
+                data:{
+                    bookingId:booking._id.toString()
+                }
+            })
+        } catch (error) {
+            console.error("Could not schedule unpaid booking cleanup:", {
+                bookingId: booking._id.toString(),
+                message: error?.message,
+            });
+        }
 
 
 
@@ -105,12 +151,85 @@ export const createBooking = async (req,res)=>{
 
 
     }catch(e){
-        console.log(e.message);
-        res.json({success:false,message:e.message})
-        
+        console.error("Create booking checkout failed:", {
+            name: e?.name,
+            message: e?.message,
+        });
+
+        if (booking && !session) {
+            for (const seat of booking.bookedSeats) {
+                if (showData?.occupiedSeats?.[seat] === booking.user) {
+                    delete showData.occupiedSeats[seat];
+                }
+            }
+
+            if (showData) {
+                showData.markModified("occupiedSeats");
+                await showData.save();
+            }
+
+            await Booking.findByIdAndDelete(booking._id);
+        }
+
+        return res.status(500).json({
+            success:false,
+            message:"Unable to create booking checkout.",
+        });
 
     }
 }
+export const verifyCheckoutPayment = async (req, res) => {
+    try {
+        const { userId } = res.locals;
+        const { sessionId } = req.body;
+
+        if (typeof sessionId !== "string" || !sessionId) {
+            return res.status(400).json({
+                success: false,
+                message: "Checkout session ID is required.",
+            });
+        }
+
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        const bookingId = session.metadata?.bookingId;
+        const booking = bookingId ? await Booking.findById(bookingId) : null;
+
+        if (!booking || booking.user !== userId) {
+            return res.status(404).json({
+                success: false,
+                message: "Booking not found.",
+            });
+        }
+
+        if (booking.stripeSessionId && booking.stripeSessionId !== session.id) {
+            return res.status(400).json({
+                success: false,
+                message: "Checkout session does not match this booking.",
+            });
+        }
+
+        if (session.payment_status !== "paid") {
+            return res.json({ success: true, isPaid: false });
+        }
+
+        const paidBooking = await processPaidCheckoutSession(session);
+
+        return res.json({
+            success: true,
+            isPaid: paidBooking.isPaid,
+        });
+    } catch (error) {
+        console.error("Checkout payment verification failed:", {
+            name: error?.name,
+            message: error?.message,
+        });
+
+        return res.status(500).json({
+            success: false,
+            message: "Unable to verify checkout payment.",
+        });
+    }
+};
 
 export const getOccupiedSeats = async (req,res)=>{
     try{

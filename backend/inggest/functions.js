@@ -1,9 +1,15 @@
 
 import { inngest } from "./client.js";
+import { clerkClient } from "@clerk/express";
 import User from "../models/user.js";
 import Booking from "../models/booking.js";
 import Show from "../models/show.js";
 import sendEmail from "../configs/nodeMailer.js";
+import {
+  processPaidCheckoutSession,
+  releaseExpiredBooking,
+  stripe,
+} from "../services/bookingPayment.js";
 
 // ==========================================
 // 1. CREATE USER
@@ -85,7 +91,7 @@ const syncUserUpdation = inngest.createFunction(
 );
 
 // ==========================================
-// 4. CANCEL UNPAID BOOKING AFTER 10 MINUTES
+// 4. RELEASE SEATS AFTER THE CHECKOUT SESSION EXPIRES
 // ==========================================
 const releaseSeatsAndDeleteBooking = inngest.createFunction(
   {
@@ -93,8 +99,8 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
     triggers: { event: "app/checkpayment" },
   },
   async ({ event, step }) => {
-    // Wait 10 minutes after booking creation
-    await step.sleep("wait-for-10-minutes", "10m");
+    // Stripe Checkout sessions expire after 30 minutes.
+    await step.sleep("wait-for-checkout-expiry", "31m");
 
     await step.run("check-payment-and-release-seats", async () => {
       const { bookingId } = event.data;
@@ -112,26 +118,28 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
         return;
       }
 
-      const show = await Show.findById(booking.show);
-
-      if (show) {
-        // Release only seats reserved by this booking's user
-        for (const seat of booking.bookedSeats) {
-          if (show.occupiedSeats[seat] === booking.user) {
-            delete show.occupiedSeats[seat];
-          }
-        }
-
-        show.markModified("occupiedSeats");
-        await show.save();
-
-        console.log("Seats released for booking:", bookingId);
+      if (!booking.stripeSessionId) {
+        console.error("Booking has no Stripe session ID:", bookingId);
+        return;
       }
 
-      // Delete the unpaid booking
-      await Booking.findByIdAndDelete(bookingId);
+      let session = await stripe.checkout.sessions.retrieve(
+        booking.stripeSessionId,
+      );
 
-      console.log("Unpaid booking deleted:", bookingId);
+      if (session.payment_status === "paid") {
+        await processPaidCheckoutSession(session);
+        return;
+      }
+
+      if (session.status === "open") {
+        session = await stripe.checkout.sessions.expire(session.id);
+      }
+
+      if (session.status === "expired") {
+        await releaseExpiredBooking(session);
+        console.log("Expired booking and released seats:", bookingId);
+      }
     });
   }
 );
@@ -146,49 +154,93 @@ const sendBookingConfirmationEmail = inngest.createFunction(
   },
   async ({ event, step }) => {
     const { bookingId } = event.data;
+    const currentBooking = await Booking.findById(bookingId);
+
+    if (
+      currentBooking?.confirmationEmailStatus === "sending" &&
+      currentBooking.confirmationEmailClaimedAt
+    ) {
+      await step.sleep("wait-for-email-claim-recovery", "11m");
+    }
 
     await step.run("send-confirmation-email", async () => {
-      const booking = await Booking.findById(bookingId);
+      const claimedAt = new Date();
+      const staleClaimBefore = new Date(claimedAt.getTime() - 10 * 60 * 1000);
+      const booking = await Booking.findOneAndUpdate(
+        {
+          _id: bookingId,
+          isPaid: true,
+          $or: [
+            { confirmationEmailStatus: "pending" },
+            {
+              confirmationEmailStatus: "sending",
+              confirmationEmailClaimedAt: { $lt: staleClaimBefore },
+            },
+            {
+              confirmationEmailStatus: "sending",
+              confirmationEmailClaimedAt: { $exists: false },
+            },
+          ],
+        },
+        {
+          $set: {
+            confirmationEmailStatus: "sending",
+            confirmationEmailClaimedAt: claimedAt,
+          },
+        },
+        { new: true },
+      );
 
       if (!booking) {
-        console.log("Booking not found:", bookingId);
+        console.log("Booking email is already claimed or sent:", bookingId);
         return;
       }
 
-      // Send confirmation only for paid bookings
-      if (!booking.isPaid) {
-        console.log("Booking is not paid:", bookingId);
-        return;
-      }
+      try {
+        const show = await Show.findById(booking.show).populate("movie");
 
-      const show = await Show.findById(booking.show).populate("movie");
+        if (!show?.movie) {
+          throw new Error(`Show or movie not found for booking ${bookingId}`);
+        }
 
-      if (!show) {
-        console.log("Show not found:", booking.show);
-        return;
-      }
+        const user = await clerkClient.users.getUser(booking.user);
+        const emailAddress =
+          user.primaryEmailAddress?.emailAddress ||
+          user.emailAddresses?.find(
+            (address) => address.id === user.primaryEmailAddressId,
+          )?.emailAddress;
 
-      // User ID in this app is the Clerk ID stored as a string
-      const user = await User.findById(booking.user);
+        if (!emailAddress) {
+          throw new Error(`Clerk email address not found for booking ${bookingId}`);
+        }
 
-      if (!user?.email) {
-        console.log("User email not found:", booking.user);
-        return;
-      }
+        if (!process.env.FRONTEND_URL) {
+          throw new Error("FRONTEND_URL is not configured");
+        }
 
-      const movieName = show.movie?.title || "Movie";
-      const bookingSeats = Array.isArray(booking.bookedSeats)
-        ? booking.bookedSeats
-        : [];
-      const amount = Number(booking.amount || 0);
-      const userName = user.name || "Movie Lover";
+        const movieName = show.movie.title || "Movie";
+        const bookingSeats = Array.isArray(booking.bookedSeats)
+          ? booking.bookedSeats
+          : [];
+        const amount = Number(booking.amount || 0);
+        const userName = user.fullName || user.firstName || "Movie Lover";
+        const showDateTime = new Date(show.showDateTime).toLocaleString(
+          "en-AU",
+          {
+            dateStyle: "full",
+            timeStyle: "short",
+            timeZone: "UTC",
+          },
+        );
+        const myBookingsUrl = new URL(
+          "/my-bookings",
+          process.env.FRONTEND_URL,
+        ).toString();
 
-      await sendEmail({
-        to: user.email,
-
-        subject: `Payment Confirmation: "${movieName}" booked!`,
-
-        body: `
+        await sendEmail({
+          to: emailAddress,
+          subject: `Payment Confirmation: "${movieName}" booked!`,
+          body: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; background-color: #f4f4f4; border-radius: 10px;">
 
             <div style="background-color: #7c3aed; color: white; padding: 20px; text-align: center; border-radius: 10px;">
@@ -208,7 +260,11 @@ const sendBookingConfirmationEmail = inngest.createFunction(
 
               <p><strong>Booking ID:</strong> ${escapeHtml(booking._id.toString())}</p>
 
+              <p><strong>Show date and time:</strong> ${escapeHtml(showDateTime)} UTC</p>
+
               <p><strong>Seats:</strong> ${bookingSeats.map(escapeHtml).join(", ")}</p>
+
+              <p><strong>Number of tickets:</strong> ${bookingSeats.length}</p>
 
               <p><strong>Amount Paid:</strong> AUD ${amount.toFixed(2)}</p>
 
@@ -218,6 +274,8 @@ const sendBookingConfirmationEmail = inngest.createFunction(
               </p>
 
               <hr>
+
+              <p><a href="${escapeHtml(myBookingsUrl)}">View your bookings</a></p>
 
               <p>Please keep this email for your reference.</p>
 
@@ -236,9 +294,46 @@ const sendBookingConfirmationEmail = inngest.createFunction(
 
           </div>
         `,
-      });
+        });
 
-      console.log("Booking confirmation email sent:", bookingId);
+        const sentUpdate = await Booking.updateOne(
+          {
+            _id: bookingId,
+            confirmationEmailStatus: "sending",
+            confirmationEmailClaimedAt: claimedAt,
+          },
+          {
+            $set: {
+              confirmationEmailStatus: "sent",
+              confirmationEmailSentAt: new Date(),
+            },
+            $unset: {
+              confirmationEmailClaimedAt: "",
+            },
+          },
+        );
+
+        if (sentUpdate.modifiedCount !== 1) {
+          throw new Error(
+            `Could not persist email delivery status for booking ${bookingId}`,
+          );
+        }
+
+        console.log("Booking confirmation email sent:", bookingId);
+      } catch (error) {
+        await Booking.updateOne(
+          {
+            _id: bookingId,
+            confirmationEmailStatus: "sending",
+            confirmationEmailClaimedAt: claimedAt,
+          },
+          {
+            $set: { confirmationEmailStatus: "pending" },
+            $unset: { confirmationEmailClaimedAt: "" },
+          },
+        );
+        throw error;
+      }
     });
   }
 );
@@ -268,4 +363,3 @@ export const functions = [
   releaseSeatsAndDeleteBooking,
   sendBookingConfirmationEmail,
 ];
-
