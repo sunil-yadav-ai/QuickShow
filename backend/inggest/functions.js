@@ -1,15 +1,5 @@
 
 
-
-
-
-
-
-
-
-
-
-
 import { inngest } from "./client.js";
 import { clerkClient } from "@clerk/express";
 import User from "../models/user.js";
@@ -21,6 +11,7 @@ import {
   releaseExpiredBooking,
   stripe,
 } from "../services/bookingPayment.js";
+import { now } from "mongoose";
 
 // ==========================================
 // 1. CREATE USER
@@ -462,6 +453,175 @@ function escapeHtml(value) {
   });
 }
 
+
+//inngest function to send reminders
+
+const sendShowReminders = inngest.createFunction(
+  {id:"send-show-reminders"},
+  {cron:"0 */8 * * *"},//every 8 hours
+  async ({step})=>{
+    const now = new Date();
+      const in8Hours = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      const windowStart = new Date(in8Hours.getTime() - 10 * 60 * 1000);
+    
+
+      // prepare reminder tasks
+      const reminderTasks = await step.run
+      ("prepare-reminder-tasks",async ()=>{
+        const shows = await Show.find({
+          showTime:{$gte:windowStart,$lte:in8Hours},
+        }).populate('movie')
+
+        const tasks = [];
+
+        for(const show of shows){
+          if(!show.movie || !show.occupiedSeats) continue;
+
+          const userIds = [...new Set(Object.values(show.occupiedSeats))];
+          if(userIds.length === 0) continue;
+
+          const users = await User.find({_id:{$in:userIds}}).select("name email");
+
+          for(const user of users){
+            tasks.push({
+              userEmail:user.email,
+              userName:user.name,
+              movieTitel:show.movie.title,
+              showTime:show.showTime,
+
+            })
+          }
+        }
+        return tasks;
+      })
+
+      if(reminderTasks.length === 0){
+        return {sent:0,message:"No reminders to send."}
+      }
+
+      //send reminder emails
+      const results = await step.run('send-all-reminders', async ()=>{
+        return await Promise.allSettled(
+          reminderTasks.map(task => sendEmail({
+            to:task.userEmail,
+            subject:`Reminder: your movie "${task.movieTitel}" starts soon!`,
+            body: `
+  <div style="margin:0;padding:30px 10px;background:#f3f4f6;font-family:Arial,sans-serif;">
+    <div style="max-width:600px;margin:auto;background:#ffffff;border-radius:12px;overflow:hidden;">
+
+
+  <div style="background:#111827;padding:25px;text-align:center;">
+    <h1 style="margin:0;color:#ffffff;font-size:30px;">
+      Quick<span style="color:#f43f5e;">Show</span>
+    </h1>
+    <p style="color:#d1d5db;margin-bottom:0;">Your Movie Experience Awaits!</p>
+  </div>
+
+  <div style="padding:30px;color:#374151;">
+    <h2 style="color:#f43f5e;">🎬 Your Movie Reminder</h2>
+
+    <p>Hi ${task.userName || "Movie Lover"},</p>
+
+    <p>
+      This is a friendly reminder that your movie is starting soon!
+      Get ready for an amazing cinematic experience.
+    </p>
+
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:10px;padding:20px;margin:25px 0;">
+      <h2 style="color:#111827;margin-top:0;">
+        ${task.movieTitel}
+      </h2>
+
+      <p><strong>📅 Date:</strong> ${task.showDate || "Check your booking"}</p>
+      <p><strong>🕒 Time:</strong> ${task.showTime || "Check your booking"}</p>
+      <p><strong>💺 Seats:</strong> ${task.seats || "Check your booking"}</p>
+      <p><strong>🎟️ Booking ID:</strong> ${task.bookingId || "N/A"}</p>
+    </div>
+
+    <h3 style="color:#111827;">Before You Arrive</h3>
+    <ul style="line-height:1.8;padding-left:20px;">
+      <li>Please arrive at the cinema a little early.</li>
+      <li>Keep your booking confirmation handy.</li>
+      <li>Double-check your showtime and selected seats.</li>
+    </ul>
+
+    <p>Thank you for choosing <strong>QuickShow</strong>!</p>
+    <p>Sit back, relax, and enjoy the show! 🍿</p>
+  </div>
+
+  <div style="background:#111827;padding:18px;text-align:center;">
+    <p style="color:#d1d5db;margin:0;">
+      © ${new Date().getFullYear()} QuickShow
+    </p>
+    <p style="color:#9ca3af;font-size:12px;">
+      Your next movie experience is just a booking away!
+    </p>
+  </div>
+
+</div>
+
+
+  </div>`
+
+
+
+          }))
+        )
+      })
+
+      const sent = results.filter(r => r.status === "fulfilled").length;
+      const failed = results.length - sent;
+
+      return {
+        sent,
+        failed,
+        message: `Sent ${sent} reminder(s), ${failed} failed.`
+      }
+  }
+)
+
+
+//
+
+const sendNewShowNotifications = inngest.createFunction(
+  {id:"send-new-show-notifications"},
+  {event:"app/show.added"},
+  async ({event})=>{
+    const {movieTitle} = event.data;
+    const users = await User.find({})
+    for(const user of users){
+      const userEmail = user.email;
+      const userName = user.name;
+
+      const subject = `New show Added: ${movieTitle}`;
+      const body = `<div style="font-family: Arial,sans-serif;padding:20px" >
+            <h2>Hi ${userName},</h2>
+            <p>we've just added a new show to our library:</p>
+            <h3 style="color:#f84565;">"${movieTitle}"</h3>
+            <p>Visit our webSite</p>
+            <br/>
+            <p>Thanks,<br/>QuickShow Team</p>
+          </div>`;
+
+          await sendEmail({
+            to:userEmail,
+            subject,
+            body,
+          })
+    }
+    return {message:"Notifications sent."}
+    
+  }
+)
+
+
+
+
+
+
+
+
+
 // ==========================================
 // EXPORT ALL INNGEST FUNCTIONS
 // ==========================================
@@ -471,5 +631,7 @@ export const functions = [
   syncUserUpdation,
   releaseSeatsAndDeleteBooking,
   sendBookingConfirmationEmail,
+  sendShowReminders,
+  sendNewShowNotifications
 ];
 

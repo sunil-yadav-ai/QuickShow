@@ -274,6 +274,7 @@
 import axios from "axios";
 import Movie from "../models/movie.js";
 import Show from "../models/show.js";
+import { inngest } from "../inggest/client.js";
 
 // ==========================================
 // API: Get Now Playing Movies
@@ -475,6 +476,12 @@ export const addShow = async (req, res) => {
             "[addShow] Successfully created shows:",
             createdShows.length
         );
+
+        //trigger inngesr function
+        await inngest.send({
+            name:"app/show.added",
+            data:{movieTitle:movie.title}
+        })
 
         return res.status(200).json({
             success: true,
