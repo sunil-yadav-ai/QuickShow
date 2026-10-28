@@ -28,7 +28,8 @@ const bookingSchema = new mongoose.Schema({
         
     },
     paymentLink:{
-        type:String
+        type:String,
+        default:""
         
         
     },

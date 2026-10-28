@@ -1,64 +1,26 @@
-// import stripe from 'stripe'
-// import Booking from '../models/booking.js'
-
-// export const stripeWebhooks = async (request,response)=>{
-//     const stripeinstance = new stripe(process.env.STRIPE_SECRET_KEY);
-//     const sig = request.headers["stripe-signature"];
-
-//     let event;
-
-//     try{
-//         event = stripeinstance.webhooks.constructEvent(request.body,sig,process.env.STRIPE_SECRET_WEBHOOK_SECRET)
-//     }catch(e){
-//         return response.status(400).send(`Webhook Error: ${e.message}`);
-//     }
-
-//     try{
-//         switch(event.type){
-//             case "payment_intent.succeeded":{
-//                 const paymentIntent = event.data.object;
-//                 const sessionList = await stripeinstance.checkout.sessions.list({
-//                     payment_intent: paymentIntent.id
-//                 })
-
-//                 const session = sessionList.data[0];
-//                 const {bookingId} = session.metadata;
-
-//                 await Booking.findByIdAndUpdate(bookingId,{
-//                     isPaid:true,
-//                     paymentLink:""
-//                 })
-//                  break;
-//             }
-               
-//             default:
-//                 console.log('Unhandled event type:',event.type)
-               
-//         }
-//         response.json({received:true})
-
-
-//     }catch(e){
-//         console.log('Webhook processing error:',e);
-//         response.status(500).send("InternalServer Error");
-
-//     }
-// }
-
-
 
 import Stripe from "stripe";
 import Booking from "../models/booking.js";
 import { inngest } from "../inggest/client.js";
 
+const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
+
 export const stripeWebhooks = async (request, response) => {
-    const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY);
     const signature = request.headers["stripe-signature"];
+
+    console.log(
+    "Stripe webhook secret configured:",
+    Boolean(process.env.STRIPE_SECRET_WEBHOOK_SECRET)
+);
 
     let event;
 
-    // Verify Stripe webhook signature
+    // 1. Verify Stripe webhook signature
     try {
+        if (!process.env.STRIPE_SECRET_WEBHOOK_SECRET) {
+            throw new Error("STRIPE_SECRET_WEBHOOK_SECRET is missing");
+        }
+
         event = stripeInstance.webhooks.constructEvent(
             request.body,
             signature,
@@ -66,66 +28,45 @@ export const stripeWebhooks = async (request, response) => {
         );
     } catch (error) {
         console.error("Stripe webhook signature error:", error.message);
-        return response.status(400).send(`Webhook Error: ${error.message}`);
+
+        return response.status(400).send(
+            `Webhook Error: ${error.message}`
+        );
     }
+
+    console.log("Stripe webhook received:", event.type);
 
     try {
         switch (event.type) {
+            // Successful Checkout payment
             case "checkout.session.completed": {
                 const session = event.data.object;
-                const bookingId = session.metadata?.bookingId;
 
-                if (!bookingId) {
-                    console.error("Booking ID missing from Stripe session metadata");
-                    return response.status(400).json({
-                        received: true,
-                        message: "Booking ID missing",
-                    });
-                }
-
-                // Only mark paid when Stripe confirms payment
-                if (session.payment_status === "paid") {
-                    const booking = await Booking.findByIdAndUpdate(
-                        bookingId,
-                        {
-                            isPaid: true,
-                            paymentLink: "",
-                        },
-                        { new: true }
+                if (session.payment_status !== "paid") {
+                    console.log(
+                        "Checkout completed, but payment is not paid:",
+                        session.id
                     );
-
-                    if (!booking) {
-                        console.error("Booking not found:", bookingId);
-                    } else {
-                        console.log("Booking payment successful:", bookingId);
-                    }
-                } else {
-                    console.log("Checkout completed but payment is not paid yet:", bookingId);
+                    break;
                 }
 
+                await processSuccessfulPayment(session);
                 break;
             }
 
+            // Delayed payment success
             case "checkout.session.async_payment_succeeded": {
                 const session = event.data.object;
-                const bookingId = session.metadata?.bookingId;
 
-                if (bookingId) {
-                    await Booking.findByIdAndUpdate(bookingId, {
-                        isPaid: true,
-                        paymentLink: "",
-                    });
-
-                    //send confirmation email
-
-                    await inngest.send({
-                        name:"app/show.booked",
-                        date:{bookingId}
-                    })
-
-                    console.log("Async payment successful:", bookingId);
+                if (session.payment_status !== "paid") {
+                    console.log(
+                        "Async payment is not marked paid:",
+                        session.id
+                    );
+                    break;
                 }
 
+                await processSuccessfulPayment(session);
                 break;
             }
 
@@ -133,10 +74,65 @@ export const stripeWebhooks = async (request, response) => {
                 console.log("Unhandled Stripe event:", event.type);
         }
 
-        return response.json({ received: true });
+        return response.status(200).json({ received: true });
     } catch (error) {
-        console.error("Webhook processing error:", error);
-        return response.status(500).send("Internal Server Error");
+        console.error("Stripe webhook processing failed:", error);
+
+        return response.status(500).json({
+            received: false,
+            message: "Webhook processing failed",
+        });
     }
 };
+
+
+// Process a successful Stripe payment
+async function processSuccessfulPayment(session) {
+    console.log("Processing successful payment:", session.id);
+
+    const bookingId = session.metadata?.bookingId;
+
+    if (!bookingId) {
+        throw new Error(
+            `Booking ID missing in Stripe session ${session.id}`
+        );
+    }
+
+    const booking = await Booking.findById(bookingId);
+
+    if (!booking) {
+        console.error("Booking not found:", bookingId);
+        return;
+    }
+
+    console.log("Booking found:", bookingId);
+    console.log("Current payment status:", booking.isPaid);
+
+    // Update payment status
+    if (!booking.isPaid) {
+        booking.isPaid = true;
+        booking.paymentLink = "";
+
+        await booking.save();
+
+        console.log("Booking payment status updated:", bookingId);
+    } else {
+        console.log("Booking was already marked as paid:", bookingId);
+    }
+
+    // Send confirmation email event through Inngest.
+    // The email function must handle duplicate events safely.
+    if (!booking.confirmationEmailSent) {
+        await inngest.send({
+            name: "app/show.booked",
+            data: {
+                bookingId: booking._id.toString(),
+            },
+        });
+
+        console.log("Booking confirmation email event sent:", bookingId);
+    } else {
+        console.log("Confirmation email already marked as sent:", bookingId);
+    }
+}
 
