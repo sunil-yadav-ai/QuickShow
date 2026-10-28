@@ -23,6 +23,11 @@ dns.setServers(["8.8.8.8", "1.1.1.1"]);
 const app = Express();
 const port = 3000;
 
+console.log("[ENV CHECK]", {
+  frontendUrlExists: Boolean(process.env.FRONTEND_URL),
+  nodeEnv: process.env.NODE_ENV,
+});
+
 //stripe webhooks route
 app.use('/api/stripe',Express.raw({type:'application/json'}),stripeWebhooks)
 
