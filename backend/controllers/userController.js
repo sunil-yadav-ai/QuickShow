@@ -1,13 +1,49 @@
 import { clerkClient } from "@clerk/express";
 import Booking from "../models/booking.js";
 import Movie from "../models/movie.js";
+import {
+  processPaidCheckoutSession,
+  queueConfirmationEmail,
+  stripe,
+} from "../services/bookingPayment.js";
 
 // API to get user bookings
 export const getUserBookings = async (req, res) => {
   try {
     const { userId } = res.locals;
 
-    const bookings = await Booking.find({ user: userId })
+    let bookings = await Booking.find({ user: userId })
+      .populate({
+        path: "show",
+        populate: {
+          path: "movie",
+        },
+      })
+      .sort({ createdAt: -1 });
+
+    for (const booking of bookings) {
+      try {
+        if (!booking.isPaid && booking.stripeSessionId) {
+          const session = await stripe.checkout.sessions.retrieve(
+            booking.stripeSessionId,
+          );
+
+          if (session.payment_status === "paid") {
+            await processPaidCheckoutSession(session);
+          }
+        } else if (booking.isPaid) {
+          await queueConfirmationEmail(booking);
+        }
+      } catch (error) {
+        console.error("Booking payment/email reconciliation failed:", {
+          bookingId: booking._id.toString(),
+          name: error?.name,
+          message: error?.message,
+        });
+      }
+    }
+
+    bookings = await Booking.find({ user: userId })
       .populate({
         path: "show",
         populate: {
