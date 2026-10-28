@@ -301,9 +301,14 @@ const sendBookingConfirmationEmail = inngest.createFunction(
           }
         );
 
+        const frontEndUrl = (
+          process.env.FRONTEND_URL ||
+          "https://quick-show-g779-sigma.vercel.app"
+        ).trim();
+
         const myBookingsUrl = new URL(
           "/my-bookings",
-          process.env.FRONTEND_URL
+          frontEndUrl.endsWith("/") ? frontEndUrl : `${frontEndUrl}/`
         ).toString();
 
         const emailResponse = await sendEmail({
