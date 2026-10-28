@@ -180,240 +180,6 @@ const releaseSeatsAndDeleteBooking = inngest.createFunction(
 // ==========================================
 // 5. SEND BOOKING CONFIRMATION EMAIL
 // ==========================================
-// const sendBookingConfirmationEmail = inngest.createFunction(
-//   {
-//     id: "send-booking-confirmation-email",
-//     triggers: { event: "app/show.booked" },
-//   },
-//   async ({ event, step }) => {
-//     const { bookingId } = event.data;
-
-//     console.log("[EMAIL] Confirmation event received:", bookingId);
-
-//     const currentBooking = await Booking.findById(bookingId);
-
-//     if (!currentBooking) {
-//       console.error("[EMAIL] Booking not found:", bookingId);
-//       return { message: "Booking not found." };
-//     }
-
-//     if (!currentBooking.isPaid) {
-//       console.log("[EMAIL] Booking is not paid:", bookingId);
-//       return { message: "Booking is not paid." };
-//     }
-
-//     if (currentBooking.confirmationEmailStatus === "sent") {
-//       console.log("[EMAIL] Confirmation already sent:", bookingId);
-//       return { message: "Confirmation email already sent." };
-//     }
-
-//     // Avoid taking over a recent sending claim.
-//     if (
-//       currentBooking.confirmationEmailStatus === "sending" &&
-//       currentBooking.confirmationEmailClaimedAt &&
-//       Date.now() -
-//         new Date(currentBooking.confirmationEmailClaimedAt).getTime() <
-//         10 * 60 * 1000
-//     ) {
-//       await step.sleep("wait-for-email-claim-recovery", "11m");
-//     }
-
-//     return await step.run("send-confirmation-email", async () => {
-//       const claimedAt = new Date();
-
-//       const staleClaimBefore = new Date(
-//         claimedAt.getTime() - 10 * 60 * 1000
-//       );
-
-//       const booking = await Booking.findOneAndUpdate(
-//         {
-//           _id: bookingId,
-//           isPaid: true,
-//           $or: [
-//             { confirmationEmailStatus: "pending" },
-//             {
-//               confirmationEmailStatus: "sending",
-//               confirmationEmailClaimedAt: { $lt: staleClaimBefore },
-//             },
-//             {
-//               confirmationEmailStatus: "sending",
-//               confirmationEmailClaimedAt: { $exists: false },
-//             },
-//           ],
-//         },
-//         {
-//           $set: {
-//             confirmationEmailStatus: "sending",
-//             confirmationEmailClaimedAt: claimedAt,
-//           },
-//         },
-//         { new: true }
-//       );
-
-//       if (!booking) {
-//         console.log("[EMAIL] Email not claimed or already sent:", bookingId);
-
-//         return { message: "Email skipped; check booking email status." };
-//       }
-
-//       try {
-//         const show = await Show.findById(booking.show).populate("movie");
-
-//         if (!show?.movie) {
-//           throw new Error("Show or movie not found.");
-//         }
-
-//         const user = await clerkClient.users.getUser(booking.user);
-
-//         const emailAddress =
-//           user.primaryEmailAddress?.emailAddress ||
-//           user.emailAddresses?.find(
-//             (address) => address.id === user.primaryEmailAddressId
-//           )?.emailAddress;
-
-//         if (!emailAddress) {
-//           throw new Error("Clerk email address not found.");
-//         }
-
-//         if (!process.env.FRONTEND_URL) {
-//           throw new Error("FRONTEND_URL is not configured.");
-//         }
-
-//         const movieName = show.movie.title || "Movie";
-
-//         const bookingSeats = Array.isArray(booking.bookedSeats)
-//           ? booking.bookedSeats
-//           : [];
-
-//         const amount = Number(booking.amount || 0);
-
-//         const userName =
-//           user.fullName || user.firstName || "Movie Lover";
-
-//         const showDateTime = new Date(show.showDateTime).toLocaleString(
-//           "en-AU",
-//           {
-//             dateStyle: "full",
-//             timeStyle: "short",
-//             timeZone: "UTC",
-//           }
-//         );
-
-//         const myBookingsUrl = new URL(
-//           "/my-bookings",
-//           process.env.FRONTEND_URL
-//         ).toString();
-
-//         const emailResponse = await sendEmail({
-//           to: emailAddress,
-//           subject: `Payment Confirmation: "${movieName}" booked!`,
-//           body: `
-//             <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px;background:#f4f4f4;border-radius:10px;">
-//               <div style="background:#7c3aed;color:white;padding:20px;text-align:center;border-radius:10px;">
-//                 <h1>Movie Booking Confirmed!</h1>
-//                 <p>Your payment was successful.</p>
-//               </div>
-
-//               <div style="background:white;padding:20px;margin-top:15px;border-radius:10px;">
-//                 <h2>Hello ${escapeHtml(userName)},</h2>
-
-//                 <p>Thank you for booking with QuickShow!</p>
-
-//                 <hr>
-
-//                 <h2 style="color:#7c3aed;">${escapeHtml(movieName)}</h2>
-
-//                 <p><strong>Booking ID:</strong> ${escapeHtml(booking._id.toString())}</p>
-//                 <p><strong>Show date and time:</strong> ${escapeHtml(showDateTime)} UTC</p>
-//                 <p><strong>Seats:</strong> ${bookingSeats.map(escapeHtml).join(", ")}</p>
-//                 <p><strong>Tickets:</strong> ${bookingSeats.length}</p>
-//                 <p><strong>Amount Paid:</strong> AUD ${amount.toFixed(2)}</p>
-//                 <p><strong>Payment Status:</strong> <span style="color:green;">Successful</span></p>
-
-//                 <hr>
-
-//                 <p>
-//                   <a href="${escapeHtml(myBookingsUrl)}">View your bookings</a>
-//                 </p>
-
-//                 <h3>Enjoy your movie!</h3>
-//                 <p>Regards,<br><strong>QuickShow Team</strong></p>
-//               </div>
-
-//               <div style="text-align:center;padding:15px;color:#666;">
-//                 <p>This is an automated confirmation email.</p>
-//               </div>
-//             </div>
-//           `,
-//         });
-
-//         const updateResult = await Booking.updateOne(
-//           {
-//             _id: bookingId,
-//             confirmationEmailStatus: "sending",
-//             confirmationEmailClaimedAt: claimedAt,
-//           },
-//           {
-//             $set: {
-//               confirmationEmailStatus: "sent",
-//               confirmationEmailSentAt: new Date(),
-//             },
-//             $unset: {
-//               confirmationEmailClaimedAt: "",
-//             },
-//           }
-//         );
-
-//         if (updateResult.modifiedCount !== 1) {
-//           throw new Error("Could not save email delivery status.");
-//         }
-
-//         console.log("[EMAIL] Confirmation sent:", {
-//           bookingId,
-//           messageId: emailResponse?.messageId,
-//         });
-
-//         return { message: "Confirmation email sent." };
-//       } catch (error) {
-//         console.error("[EMAIL] Confirmation failed:", error.message);
-
-//         await Booking.updateOne(
-//           {
-//             _id: bookingId,
-//             confirmationEmailStatus: "sending",
-//             confirmationEmailClaimedAt: claimedAt,
-//           },
-//           {
-//             $set: { confirmationEmailStatus: "pending" },
-//             $unset: { confirmationEmailClaimedAt: "" },
-//           }
-//         );
-
-//         throw error;
-//       }
-//     });
-//   }
-// );
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ==========================================
-// SEND BOOKING CONFIRMATION EMAIL
-// ==========================================
 const sendBookingConfirmationEmail = inngest.createFunction(
   {
     id: "send-booking-confirmation-email",
@@ -437,9 +203,11 @@ const sendBookingConfirmationEmail = inngest.createFunction(
     }
 
     if (currentBooking.confirmationEmailStatus === "sent") {
+      console.log("[EMAIL] Confirmation already sent:", bookingId);
       return { message: "Confirmation email already sent." };
     }
 
+    // Avoid taking over a recent sending claim.
     if (
       currentBooking.confirmationEmailStatus === "sending" &&
       currentBooking.confirmationEmailClaimedAt &&
@@ -465,9 +233,7 @@ const sendBookingConfirmationEmail = inngest.createFunction(
             { confirmationEmailStatus: "pending" },
             {
               confirmationEmailStatus: "sending",
-              confirmationEmailClaimedAt: {
-                $lt: staleClaimBefore,
-              },
+              confirmationEmailClaimedAt: { $lt: staleClaimBefore },
             },
             {
               confirmationEmailStatus: "sending",
@@ -485,9 +251,9 @@ const sendBookingConfirmationEmail = inngest.createFunction(
       );
 
       if (!booking) {
-        return {
-          message: "Email skipped; check booking email status.",
-        };
+        console.log("[EMAIL] Email not claimed or already sent:", bookingId);
+
+        return { message: "Email skipped; check booking email status." };
       }
 
       try {
@@ -509,42 +275,11 @@ const sendBookingConfirmationEmail = inngest.createFunction(
           throw new Error("Clerk email address not found.");
         }
 
-        // Read the variable inside the executing function.
-        const frontendUrl = process.env.FRONTEND_URL?.trim();
+        
 
-        console.log("[EMAIL DEBUG]", {
-          frontendUrlExists: Boolean(frontendUrl),
-          frontendUrlLength: frontendUrl?.length ?? 0,
-          nodeEnv: process.env.NODE_ENV,
-        });
 
-        if (!frontendUrl) {
-          throw new Error(
-            "FRONTEND_URL is missing or empty in the email function runtime."
-          );
-        }
-
-        let myBookingsUrl;
-
-        try {
-          const parsedFrontendUrl = new URL(frontendUrl);
-
-          if (
-            parsedFrontendUrl.protocol !== "https:" &&
-            parsedFrontendUrl.hostname !== "localhost"
-          ) {
-            throw new Error("Production frontend URL must use HTTPS.");
-          }
-
-          myBookingsUrl = new URL(
-            "/my-bookings",
-            parsedFrontendUrl
-          ).toString();
-        } catch (error) {
-          throw new Error(
-            `Invalid FRONTEND_URL configuration: ${error.message}`
-          );
-        }
+        const frontendUrl =
+  process.env.FRONTEND_URL || "https://quick-show-g779-sigma.vercel.app";
 
         const movieName = show.movie.title || "Movie";
 
@@ -566,6 +301,11 @@ const sendBookingConfirmationEmail = inngest.createFunction(
           }
         );
 
+        const myBookingsUrl = new URL(
+          "/my-bookings",
+          process.env.FRONTEND_URL
+        ).toString();
+
         const emailResponse = await sendEmail({
           to: emailAddress,
           subject: `Payment Confirmation: "${movieName}" booked!`,
@@ -578,7 +318,9 @@ const sendBookingConfirmationEmail = inngest.createFunction(
 
               <div style="background:white;padding:20px;margin-top:15px;border-radius:10px;">
                 <h2>Hello ${escapeHtml(userName)},</h2>
+
                 <p>Thank you for booking with QuickShow!</p>
+
                 <hr>
 
                 <h2 style="color:#7c3aed;">${escapeHtml(movieName)}</h2>
@@ -588,7 +330,7 @@ const sendBookingConfirmationEmail = inngest.createFunction(
                 <p><strong>Seats:</strong> ${bookingSeats.map(escapeHtml).join(", ")}</p>
                 <p><strong>Tickets:</strong> ${bookingSeats.length}</p>
                 <p><strong>Amount Paid:</strong> AUD ${amount.toFixed(2)}</p>
-                <p><strong>Payment Status:</strong> Successful</p>
+                <p><strong>Payment Status:</strong> <span style="color:green;">Successful</span></p>
 
                 <hr>
 
@@ -654,6 +396,18 @@ const sendBookingConfirmationEmail = inngest.createFunction(
     });
   }
 );
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
