@@ -84,21 +84,23 @@ export const queueConfirmationEmail = async (booking) => {
 
     const staleClaim =
         booking.confirmationEmailStatus === "sending" &&
-        booking.confirmationEmailClaimedAt &&
-        Date.now() - booking.confirmationEmailClaimedAt.getTime() > 10 * 60 * 1000;
+        (!booking.confirmationEmailClaimedAt ||
+            Date.now() - booking.confirmationEmailClaimedAt.getTime() >
+                10 * 60 * 1000);
 
     if (staleClaim) {
         const reset = await Booking.findOneAndUpdate(
             {
                 _id: booking._id,
                 confirmationEmailStatus: "sending",
-                confirmationEmailClaimedAt: booking.confirmationEmailClaimedAt,
+                confirmationEmailClaimedAt:
+                    booking.confirmationEmailClaimedAt ?? null,
             },
             {
                 $set: {
                     confirmationEmailStatus: "pending",
-                    confirmationEmailClaimedAt: null,
                 },
+                $unset: { confirmationEmailClaimedAt: "" },
             },
             { new: true },
         );

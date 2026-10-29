@@ -1,8 +1,9 @@
 import Express from "express";
 import cors from "cors";
-import "dotenv/config";
+import "./configs/loadEnv.js";
 
 import connectDB from "./configs/db.js";
+import { logRequiredEnvironmentStatus } from "./configs/environment.js";
 import { clerkMiddleware } from "@clerk/express";
 import { diagnoseClerkRequests } from "./middleware/auth.js";
 
@@ -23,8 +24,8 @@ dns.setServers(["8.8.8.8", "1.1.1.1"]);
 const app = Express();
 const port = 3000;
 
-console.log("[ENV CHECK]", {
-  frontendUrlExists: Boolean(process.env.FRONTEND_URL),
+logRequiredEnvironmentStatus("Backend startup");
+console.log("[ENV CHECK] Runtime", {
   nodeEnv: process.env.NODE_ENV,
 });
 

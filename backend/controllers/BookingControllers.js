@@ -11,6 +11,7 @@ import {
     processPaidCheckoutSession,
     stripe,
 } from "../services/bookingPayment.js";
+import { getFrontendOrigin } from "../configs/frontendUrl.js";
 
 // ==========================================
 // CHECK SEAT AVAILABILITY
@@ -51,7 +52,6 @@ export const createBooking = async (req, res) => {
     try {
         const { userId } = res.locals;
         const { showId, selectedSeats } = req.body;
-        const frontendUrl = process.env.FRONTEND_URL;
 
         // Validate selected seats
         if (
@@ -77,11 +77,7 @@ export const createBooking = async (req, res) => {
             });
         }
 
-        if (!frontendUrl) {
-            throw new Error("FRONTEND_URL is not configured");
-        }
-
-        const frontendOrigin = new URL(frontendUrl).origin;
+        const frontendOrigin = getFrontendOrigin();
 
         // Check seat availability
         const isAvailable = await checkSeatsAvailability(
@@ -396,4 +392,3 @@ export const getOccupiedSeats = async (req, res) => {
         });
     }
 };
-

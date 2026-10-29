@@ -5,8 +5,10 @@ import User from "../models/user.js";
 import Booking from "../models/booking.js";
 import Show from "../models/show.js";
 import sendEmail from "../configs/nodeMailer.js";
+import { getFrontendOrigin } from "../configs/frontendUrl.js";
 import {
   processPaidCheckoutSession,
+  queueConfirmationEmail,
   releaseExpiredBooking,
   stripe,
 } from "../services/bookingPayment.js";
@@ -275,12 +277,6 @@ const sendBookingConfirmationEmail = inngest.createFunction(
           throw new Error("Clerk email address not found.");
         }
 
-        
-
-
-        const frontendUrl =
-  process.env.FRONTEND_URL || "https://quick-show-g779-sigma.vercel.app";
-
         const movieName = show.movie.title || "Movie";
 
         const bookingSeats = Array.isArray(booking.bookedSeats)
@@ -301,14 +297,9 @@ const sendBookingConfirmationEmail = inngest.createFunction(
           }
         );
 
-        const frontEndUrl = (
-          process.env.FRONTEND_URL ||
-          "https://quick-show-g779-sigma.vercel.app"
-        ).trim();
-
         const myBookingsUrl = new URL(
           "/my-bookings",
-          frontEndUrl.endsWith("/") ? frontEndUrl : `${frontEndUrl}/`
+          getFrontendOrigin()
         ).toString();
 
         const emailResponse = await sendEmail({
@@ -382,7 +373,10 @@ const sendBookingConfirmationEmail = inngest.createFunction(
 
         return { message: "Confirmation email sent." };
       } catch (error) {
-        console.error("[EMAIL] Confirmation failed:", error.message);
+        console.error("[EMAIL] Confirmation failed:", {
+          name: error?.name,
+          code: error?.code,
+        });
 
         await Booking.updateOne(
           {
@@ -402,37 +396,57 @@ const sendBookingConfirmationEmail = inngest.createFunction(
   }
 );
 
+// ==========================================
+// 6. RECOVER PENDING CONFIRMATION EMAILS
+// ==========================================
+const recoverBookingConfirmationEmails = inngest.createFunction(
+  {
+    id: "recover-booking-confirmation-emails",
+    triggers: [{ cron: "*/5 * * * *" }],
+  },
+  async () => {
+    const staleClaimBefore = new Date(Date.now() - 10 * 60 * 1000);
+    const bookings = await Booking.find({
+      isPaid: true,
+      $or: [
+        {
+          confirmationEmailStatus: "sending",
+          confirmationEmailClaimedAt: { $lt: staleClaimBefore },
+        },
+        {
+          confirmationEmailStatus: "sending",
+          confirmationEmailClaimedAt: null,
+        },
+      ],
+    })
+      .sort({ updatedAt: 1 })
+      .limit(100)
+      .select("_id confirmationEmailStatus confirmationEmailClaimedAt");
 
+    const results = await Promise.allSettled(
+      bookings.map((booking) => queueConfirmationEmail(booking))
+    );
+    const failed = results.filter((result) => result.status === "rejected");
 
+    for (const [index, result] of results.entries()) {
+      if (result.status === "rejected") {
+        console.error("[EMAIL RECOVERY] Could not queue confirmation:", {
+          bookingId: bookings[index]._id.toString(),
+          name: result.reason?.name,
+          code: result.reason?.code,
+        });
+      }
+    }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return {
+      checked: bookings.length,
+      failed: failed.length,
+    };
+  }
+);
 
 // ==========================================
-// 6. SEND SHOW REMINDERS
+// 7. SEND SHOW REMINDERS
 // ==========================================
 const sendShowReminders = inngest.createFunction(
   {
@@ -574,7 +588,7 @@ const sendShowReminders = inngest.createFunction(
 );
 
 // ==========================================
-// 7. SEND NEW SHOW NOTIFICATIONS
+// 8. SEND NEW SHOW NOTIFICATIONS
 // ==========================================
 const sendNewShowNotifications = inngest.createFunction(
   {
@@ -645,7 +659,7 @@ export const functions = [
   syncUserUpdation,
   releaseSeatsAndDeleteBooking,
   sendBookingConfirmationEmail,
+  recoverBookingConfirmationEmails,
   sendShowReminders,
   sendNewShowNotifications,
 ];
-
