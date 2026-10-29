@@ -5,6 +5,7 @@ import User from "../models/user.js";
 import Booking from "../models/booking.js";
 import Show from "../models/show.js";
 import sendEmail from "../configs/nodeMailer.js";
+import { logRequiredEnvironmentStatus } from "../configs/environment.js";
 import { getFrontendOrigin } from "../configs/frontendUrl.js";
 import {
   processPaidCheckoutSession,
@@ -190,6 +191,7 @@ const sendBookingConfirmationEmail = inngest.createFunction(
   async ({ event, step }) => {
     const { bookingId } = event.data;
 
+    logRequiredEnvironmentStatus("Inngest confirmation worker");
     console.log("[EMAIL] Confirmation event received:", bookingId);
 
     const currentBooking = await Booking.findById(bookingId);
