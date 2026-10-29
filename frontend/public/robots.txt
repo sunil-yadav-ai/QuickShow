@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /favorite
+Disallow: /my-bookings
+Disallow: /loading
+Disallow: /movies/*/*
+
+Sitemap: https://quick-show-g779-sigma.vercel.app/sitemap.xml

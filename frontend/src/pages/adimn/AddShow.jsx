@@ -271,7 +271,11 @@ const Addshow = () => {
                                         image_base_url + movie.poster_path
                                     }
                                     alt={movie.title}
-                                    className="w-full object-cover brightness-90"
+                                    width="500"
+                                    height="750"
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="aspect-[2/3] w-full object-cover brightness-90"
                                 />
 
                                 {/* Movie Rating and Votes */}

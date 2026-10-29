@@ -1,7 +1,6 @@
 
 import React,{useState} from 'react'
 import BlurCircle from './BlurCircle'
-import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
 const DateSelect = ({ dateTime, id }) => {
@@ -13,30 +12,29 @@ const DateSelect = ({ dateTime, id }) => {
             return toast('Please select a date')
         }
         navigate(`/movies/${id}/${selected}`)
-        scrollTo(0,0)
+        window.scrollTo(0,0)
 
     }
 
     return (
-        <div id='dateSelect' className='pt-30'>
-            <div className='flex flex-col md:flex-row items-center justify-between gap-10 relative p-8 bg-primary/10 border border-primary/20 rounded-lg'>
+        <section id='dateSelect' aria-labelledby="date-select-heading" className='scroll-mt-24 pt-20 sm:pt-28'>
+            <div className='relative flex flex-col items-start justify-between gap-6 rounded-lg border border-primary/20 bg-primary/10 p-4 sm:p-6 md:flex-row md:items-center md:gap-10 md:p-8'>
 
                 <BlurCircle top='-100px' left='-100px' />
                 <BlurCircle top='100px' right='0px' />
 
                 <div>
-                    <p>Choose Date</p>
+                    <h2 id="date-select-heading" className="font-medium">Choose a show date</h2>
 
-                    <div className='flex items-center gap-6 text-sm mt-5'>
-
-                        <ChevronLeftIcon width={28} />
-
-                        <span className='grid grid-cols-3 md:flex flex-wrap md:max-w-lg gap-4'>
+                    <div className='mt-4 flex max-w-full items-center gap-2 text-sm sm:gap-4'>
+                        <div className='flex max-w-full flex-wrap gap-2 sm:gap-3'>
                             {Object.keys(dateTime).map((date) => (
                                 <button 
+                                    type="button"
                                     onClick={()=> setSelected(date)}
                                     key={date}
-                                    className={`flex flex-col items-center justify-center h-14 w-14 aspect-square rounded cursor-pointer hover:bg-primary hover:text-white transition ${selected === date ? "bg-primary text-white" : "border border-primary/70"}`}
+                                    aria-pressed={selected === date}
+                                    className={`flex min-h-14 min-w-14 flex-col items-center justify-center rounded transition hover:bg-primary hover:text-white ${selected === date ? "bg-primary text-white" : "border border-primary/70"}`}
                                 >
                                     <span>
                                         {new Date(date).getDate()}
@@ -49,21 +47,16 @@ const DateSelect = ({ dateTime, id }) => {
                                     </span>
                                 </button>
                             ))}
-                        </span>
-
-                        <ChevronRightIcon width={28} />
-
+                        </div>
                     </div>
                 </div>
 
-                <button onClick={onBookHandler} className='bg-primary text-white px-8 py-2 mt-6 rounded hover:bg-primary/90 transition-all cursor-pointer'>
+                <button type="button" onClick={onBookHandler} className='min-h-11 w-full rounded bg-primary px-8 py-2 text-white transition-all hover:bg-primary/90 md:mt-6 md:w-auto'>
                     Book Now
                 </button>
-
-            </div>
-        </div>
+                </div>
+            </section>
     )
 }
 
 export default DateSelect
-

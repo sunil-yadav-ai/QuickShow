@@ -318,6 +318,53 @@ export const getNowPlayingMovies = async (req, res) => {
     }
 };
 
+export const getMovieVideos = async (req, res) => {
+    const { movieId } = req.params;
+
+    if (!/^\d+$/.test(movieId)) {
+        return res.status(400).json({
+            success: false,
+            message: "A valid TMDB movie ID is required.",
+        });
+    }
+
+    if (!process.env.TMDB_ACCESS_TOKEN) {
+        console.error("[getMovieVideos] TMDB access token is not configured");
+        return res.status(503).json({
+            success: false,
+            message: "Movie trailers are temporarily unavailable.",
+        });
+    }
+
+    try {
+        const { data } = await axios.get(
+            `https://api.themoviedb.org/3/movie/${movieId}/videos`,
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.TMDB_ACCESS_TOKEN}`,
+                },
+                timeout: 15000,
+            }
+        );
+
+        return res.status(200).json({
+            success: true,
+            videos: data.results || [],
+        });
+    } catch (error) {
+        console.error("[getMovieVideos] Unable to fetch TMDB videos:", {
+            message: error.message,
+            code: error.code || "N/A",
+            tmdbStatus: error.response?.status || "N/A",
+        });
+
+        return res.status(502).json({
+            success: false,
+            message: "Unable to load this movie trailer right now.",
+        });
+    }
+};
+
 
 // ==========================================
 // API: Add a New Show
@@ -660,4 +707,3 @@ export const getShow = async (req, res) => {
         });
     }
 };
-

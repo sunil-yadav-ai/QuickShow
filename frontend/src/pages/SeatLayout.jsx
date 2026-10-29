@@ -1,16 +1,15 @@
-import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { assets, dummyDateTimeData, dummyShowsData } from '../assets/assets';
+import React, { useCallback, useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { assets } from '../assets/assets';
 import Loading from '../components/Loading';
 import { ArrowRightIcon, ClockIcon } from 'lucide-react';
 import isoTimeFormat from '../lib/isoTimeFormat';
 import BlurCircle from '../components/BlurCircle'
 import { toast } from 'react-hot-toast';
 import { useAppContext } from '../context/AppContex';
+import SEO from '../components/SEO';
 
 const SeatLayout = () => {
-    const navigte = useNavigate()
-
     const groupRows = [["A", "B"], ["C", "D"], ["E", "F"], ["G", "H"], ["I", "J"]]
 
     const { id, date } = useParams();
@@ -22,7 +21,9 @@ const SeatLayout = () => {
 
     const {axios,getToken,user} = useAppContext()
 
-    const getShow = async () => {
+    const selectedShowId = selectedTime?.showId
+
+    const getShow = useCallback(async () => {
        try{
         const {data} = await axios.get(`/api/show/${id}`)
         if(data.success){
@@ -32,11 +33,13 @@ const SeatLayout = () => {
        }catch(e){
         console.log(e)
        }
-    }
+    }, [axios, id])
 
-    const getoccupiedSeats = async ()=>{
+    const getoccupiedSeats = useCallback(async ()=>{
+        if (!selectedShowId) return
+
         try{
-            const {data} = await axios.get(`/api/booking/seats/${selectedTime.showId}`)
+            const {data} = await axios.get(`/api/booking/seats/${selectedShowId}`)
             if(data.success){
                 setoccupiedSeats(data.occupiedSeats)
             }else{
@@ -47,7 +50,7 @@ const SeatLayout = () => {
             console.log(e)
 
         }
-    }
+    }, [axios, selectedShowId])
 
 
     useEffect(()=>{
@@ -55,7 +58,7 @@ const SeatLayout = () => {
             getoccupiedSeats()
         }
 
-    },[selectedTime])
+    },[getoccupiedSeats, selectedTime])
 
     const handleSeatClick = (seatId) => {
 
@@ -108,8 +111,8 @@ const SeatLayout = () => {
 
 
     const renderSeats = (row, count = 9) => (
-        <div key={row} className='flex gap-2 mt-2'>
-            <div className='flex flex-wrap items-center justify-center gap-2'>
+        <div key={row} className='mt-2 flex justify-center'>
+            <div className='flex items-center justify-center gap-1 sm:gap-2'>
 
                 {Array.from({ length: count }, (_, i) => {
 
@@ -118,12 +121,16 @@ const SeatLayout = () => {
                     return (
                         <button
                             key={seatId}
+                            type="button"
                             onClick={() => handleSeatClick(seatId)}
-                            className={`h-8 w-8 rounded border border-primary/60 cursor-pointer ${
+                            disabled={occupiedSeats.includes(seatId)}
+                            aria-label={`Seat ${seatId}${occupiedSeats.includes(seatId) ? ', unavailable' : ''}`}
+                            aria-pressed={selectedSeats.includes(seatId)}
+                            className={`h-6 w-6 rounded border border-primary/60 text-[10px] sm:h-8 sm:w-8 sm:text-xs ${
                                 selectedSeats.includes(seatId)
                                     ? "bg-primary text-white"
                                     : ""
-                            } ${occupiedSeats.includes(seatId) && "opacity-50"}`}
+                            } ${occupiedSeats.includes(seatId) ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-primary/30"}`}
                         >
                             {seatId}
                         </button>
@@ -136,12 +143,17 @@ const SeatLayout = () => {
 
     useEffect(() => {
         getShow()
-    }, [id])
+    }, [getShow])
 
     return show ? (
-        <div className='flex flex-col md:flex-row px-6 md:px-16 lg:px-40 py-30 md:pt-50'>
+        <main className='flex min-h-[80vh] flex-col px-4 pb-16 pt-28 sm:px-6 sm:pt-32 md:flex-row md:px-10 lg:px-20 xl:px-40'>
+            <SEO
+                title="Choose seats and showtime | QuickShow"
+                description="Choose a showtime and available seats for your QuickShow movie booking."
+                noIndex
+            />
 
-            <div className='w-60 bg-primary/10 border border-primary/20 rounded-lg py-10 h-max md:sticky md:top-30'>
+            <section aria-label="Available showtimes" className='w-full rounded-lg border border-primary/20 bg-primary/10 py-6 md:sticky md:top-24 md:h-max md:w-60 md:shrink-0 md:py-10'>
 
                 <p className='text-lg font-semibold px-6'>
                     Available Timings
@@ -151,30 +163,33 @@ const SeatLayout = () => {
 
                     {show.dateTime[date]?.map((item) => (
 
-                        <div
+                        <button
+                            type="button"
                             key={item.time}
                             onClick={() => setSelectedTime(item)}
-                            className={`flex items-center gap-2 px-6 py-2 w-max rounded-r-md cursor-pointer transition ${
+                            aria-pressed={selectedTime?.time === item.time}
+                            className={`flex min-h-11 w-full items-center gap-2 px-6 py-2 text-left transition ${
                                 selectedTime?.time === item.time
                                     ? "bg-primary text-white"
                                     : "hover:bg-primary/20"
                             }`}
                         >
-                            <ClockIcon className='w-4 h-4' />
+
+                            <ClockIcon className='h-4 w-4' aria-hidden="true" />
 
                             <p className='text-sm'>
                                 {isoTimeFormat(item.time)}
                             </p>
 
-                        </div>
+                        </button>
 
                     ))}
 
                 </div>
 
-            </div>
+            </section>
 
-            <div className='relative flex-1 flex flex-col items-center max-md:mt-16'>
+            <section aria-label="Select your seats" className='relative flex min-w-0 flex-1 flex-col items-center pt-10 md:pt-0'>
 
                 <BlurCircle top="-100px" left="-100px" />
                 <BlurCircle top="0" right="0" />
@@ -186,6 +201,9 @@ const SeatLayout = () => {
                 <img
                     src={assets.screenImage}
                     alt="screen"
+                    width="600"
+                    height="80"
+                    className="h-auto w-full max-w-md"
                 />
 
                 <p className='text-gray-400 text-sm mb-6'>
@@ -195,14 +213,14 @@ const SeatLayout = () => {
                 <div className='flex flex-col items-center mt-10 text-xs text-gray-300'>
 
                     {/* A & B */}
-                    <div className='grid grid-cols-2 md:grid-cols-1 gap-8 md:gap-2 mb-6'>
+                    <div className='mb-6 grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-8 md:grid-cols-1'>
                         {groupRows[0].map(row =>
                             renderSeats(row)
                         )}
                     </div>
 
                     {/* C - J */}
-                    <div className='grid grid-cols-2 gap-11'>
+                    <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-4'>
 
                         {groupRows.slice(1).map((group, idx) => (
 
@@ -217,13 +235,14 @@ const SeatLayout = () => {
                     </div>
 
                 </div>
-                <button onClick={bookTickets} className='flex items-center gap-1 mt-20 px-10 py-3 text-sm bg-primary hover:bg-primary-dull transition rounded-full font-medium cursor-poiner active:scale-95'>Proceed to Checkout
+                <button onClick={bookTickets} className='mt-10 flex min-h-12 w-full max-w-sm items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-medium transition hover:bg-primary-dull active:scale-95 sm:mt-14'>
+                    Proceed to Checkout
                     <ArrowRightIcon strokeWidth={3} className='w-4 h-4'/>
                 </button>
 
-            </div>
+            </section>
 
-        </div>
+        </main>
     ) : <Loading />
 }
 

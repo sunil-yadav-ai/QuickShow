@@ -5,6 +5,7 @@ import BlurCircle from "../components/BlurCircle";
 import timeFormat from "../lib/timeFormat";
 import { dateFormat } from "../lib/dateFormat";
 import { useAppContext } from "../context/AppContex";
+import SEO from "../components/SEO";
 
 const MyBookings = () => {
     const currency = import.meta.env.VITE_CURRENCY;
@@ -61,16 +62,25 @@ const MyBookings = () => {
     }, [user, getMyBookings]);
 
     return !isPageLoading ? (
-        <div className="relative px-6 md:px-16 lg:px-40 pt-30 md:pt-40 min-h-[80vh]">
+        <main className="relative min-h-[80vh] px-4 pt-28 sm:px-6 sm:pt-32 md:px-16 md:pt-40 lg:px-40">
+            <SEO
+                title="My bookings | QuickShow"
+                description="View your QuickShow movie bookings and payment status."
+                noIndex
+            />
             <BlurCircle top="100px" left="100px" />
 
             <div>
                 <BlurCircle bottom="0px" left="600px" />
             </div>
 
-            <h1 className="text-lg font-semibold mb-4">
-                My Booking
+            <h1 className="mb-4 text-2xl font-semibold">
+                My bookings
             </h1>
+
+            {bookings.length === 0 && (
+                <p className="mt-8 text-gray-300">You do not have any bookings yet.</p>
+            )}
 
             {bookings.map((item) => (
                 <div
@@ -78,16 +88,30 @@ const MyBookings = () => {
                     className="flex flex-col md:flex-row justify-between bg-primary/8 border border-primary/20 rounded-lg mt-4 p-2 max-w-3xl"
                 >
                     <div className="flex flex-col md:flex-row">
-                        <img
-                            src={image_base_url + item.show.movie.poster_path}
-                            className="md:max-w-45 aspect-video h-auto object-cover object-bottom rounded"
-                            alt={item.show.movie.title || "Movie poster"}
-                        />
+                        {item.show.movie.poster_path ? (
+                            <img
+                                src={image_base_url + item.show.movie.poster_path}
+                                width="500"
+                                height="281"
+                                loading="lazy"
+                                decoding="async"
+                                className="aspect-video h-auto w-full rounded object-cover object-bottom md:max-w-45"
+                                alt={`${item.show.movie.title || "Movie"} poster`}
+                            />
+                        ) : (
+                            <div
+                                role="img"
+                                aria-label={`${item.show.movie.title || "Movie"} poster unavailable`}
+                                className="flex aspect-video w-full items-center justify-center rounded bg-gray-800 text-sm text-gray-300 md:max-w-45"
+                            >
+                                Poster unavailable
+                            </div>
+                        )}
 
                         <div className="flex flex-col p-4">
-                            <p className="text-lg font-semibold">
+                            <h2 className="text-lg font-semibold">
                                 {item.show.movie.title}
-                            </p>
+                            </h2>
 
                             <p className="text-gray-400 text-sm">
                                 {timeFormat(item.show.movie.runtime)}
@@ -147,7 +171,7 @@ const MyBookings = () => {
                     </div>
                 </div>
             ))}
-        </div>
+        </main>
     ) : (
         <Loading />
     );

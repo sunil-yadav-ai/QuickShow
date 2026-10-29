@@ -11,15 +11,15 @@ const FeaturedSection = () => {
     const {shows} = useAppContext()
 
     return (
-        <div className="px-6 md:px-16 lg:px-24 xl:px-44 overflow-hidden">
+        <section className="overflow-hidden px-4 sm:px-6 md:px-16 lg:px-24 xl:px-44">
 
             <div className="relative flex items-center justify-between pt-20 pb-10">
 
                 <BlurCircle top="0" right="-80px" />
 
-                <p className="text-gray-300 font-medium text-lg">
+                <h2 className="text-lg font-medium text-gray-200">
                     Now Showing
-                </p>
+                </h2>
 
                 <button
                     onClick={() => navigate('/movies')}
@@ -33,7 +33,7 @@ const FeaturedSection = () => {
             </div>
 
             {/* Movie Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4 lg:gap-6">
                 {shows.slice(0, 4).map((show) => (
                     <MovieCard
                         key={show._id}
@@ -47,7 +47,7 @@ const FeaturedSection = () => {
             </div>
 
             {/* Show More */}
-            <div className="flex justify-center mt-20">
+            <div className="mt-12 flex justify-center sm:mt-16">
                 <button
                     onClick={() => {
                         navigate('/movies')
@@ -59,7 +59,7 @@ const FeaturedSection = () => {
                 </button>
             </div>
 
-        </div>
+        </section>
     )
 }
 

@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "inngest-cloud": {
+      "type": "http",
+      "url": "https://api.inngest.com/mcp",
+      "oauth": {
+        "clientId": "inngest-mcp-static"
+      }
+    }
+  }
+}

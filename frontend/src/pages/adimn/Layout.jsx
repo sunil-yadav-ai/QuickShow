@@ -108,11 +108,11 @@ if (!isAdmin) {
 return (
     <>
         <AdminNavbar />
-        <div className="flex">
+        <div className="flex min-h-[calc(100vh-64px)] min-w-0">
             <Adminsidebar />
-            <div className="flex-1 px-4 py-6 md:px-10 md:py-8 h-[calc(100vh-64px)] overflow-y-auto">
+            <main className="min-w-0 flex-1 overflow-y-auto px-3 py-6 sm:px-4 md:h-[calc(100vh-64px)] md:px-10 md:py-8">
                 <Outlet />
-            </div>
+            </main>
         </div>
     </>
 );

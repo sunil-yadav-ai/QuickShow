@@ -1,6 +1,7 @@
 import { StarIcon } from 'lucide-react'
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import timeFormat from '../lib/timeFormat'
 import { useAppContext } from '../context/AppContex'
 
@@ -10,27 +11,47 @@ const MovieCard = ({ movie }) => {
 
     const handleMovieClick = () => {
         navigate(`/movies/${movie._id}`)
-        scrollTo(0, 0)
+        window.scrollTo(0, 0)
     }
 
     return (
-        <div className="flex flex-col justify-between p-3 bg-gray-800 rounded-2xl hover:-translate-y-1 transition duration-300 w-66">
+        <article className="flex min-w-0 flex-col justify-between rounded-2xl bg-gray-800 p-2.5 transition duration-300 hover:-translate-y-1 sm:p-3">
 
-            <img
-                onClick={handleMovieClick}
-                src={image_base_url + movie.backdrop_path}
-                alt={movie.title}
-                className="rounded-lg h-52 w-full object-cover object-right-bottom cursor-pointer"
-            />
+            <Link
+                to={`/movies/${movie._id}`}
+                onClick={() => window.scrollTo(0, 0)}
+                aria-label={`View ${movie.title} details`}
+                className="block overflow-hidden rounded-lg"
+            >
+                {movie.backdrop_path ? (
+                    <img
+                        src={image_base_url + movie.backdrop_path}
+                        alt={`${movie.title} movie backdrop`}
+                        width="500"
+                        height="281"
+                        loading="lazy"
+                        decoding="async"
+                        className="aspect-video w-full object-cover object-center"
+                    />
+                ) : (
+                    <span
+                        role="img"
+                        aria-label={`${movie.title} backdrop unavailable`}
+                        className="flex aspect-video w-full items-center justify-center bg-gray-700 text-sm text-gray-300"
+                    >
+                        Image unavailable
+                    </span>
+                )}
+            </Link>
 
-            <p className="font-semibold mt-2 truncate">
+            <h2 className="mt-2 truncate font-semibold">
                 {movie.title}
-            </p>
+            </h2>
 
             <p className="text-sm text-gray-400 mt-2">
                 {new Date(movie.release_date).getFullYear()}
                 {' . '}
-                {movie.genres
+                {(movie.genres || [])
                     .slice(0, 2)
                     .map(genre => genre.name)
                     .join(' | ')}
@@ -49,11 +70,11 @@ const MovieCard = ({ movie }) => {
 
                 <p className="flex items-center gap-1 text-sm text-gray-400 mt-1 pr-1">
                     <StarIcon className="w-4 h-4 text-primary fill-primary" />
-                    {movie.vote_average.toFixed(1)}
+                    {Number(movie.vote_average || 0).toFixed(1)}
                 </p>
 
             </div>
-        </div>
+        </article>
     )
 }
 

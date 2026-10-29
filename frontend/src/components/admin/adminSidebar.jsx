@@ -40,12 +40,13 @@ const Adminsidebar = () => {
     ]
 
     return (
-        <div className="h-[calc(100vh-64px)] md:flex flex-col items-center pt-8 max-w-13 md:max-w-60 w-full border-r border-gray-300/20 text-sm">
+        <nav aria-label="Admin navigation" className="h-[calc(100vh-64px)] flex w-12 shrink-0 flex-col items-center border-r border-gray-300/20 pt-5 text-sm md:w-60 md:pt-8">
 
             <img
                 className="h-9 md:h-14 w-9 md:w-14 rounded-full mx-auto"
                 src={user.imageUrl}
-                alt="sidebar"
+                alt=""
+                aria-hidden="true"
             />
 
             <p className="mt-2 text-base max-md:hidden">
@@ -61,6 +62,7 @@ const Adminsidebar = () => {
                             end
                             key={index}
                             to={link.path}
+                            aria-label={link.name}
                             className={({ isActive }) =>
                                 `relative flex items-center max-md:justify-center gap-2 w-full py-2.5 md:pl-10 first:mt-6 text-gray-400 ${
                                     isActive
@@ -89,7 +91,7 @@ const Adminsidebar = () => {
                 })}
             </div>
 
-        </div>
+        </nav>
     )
 }
 

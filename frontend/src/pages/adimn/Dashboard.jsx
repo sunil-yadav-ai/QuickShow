@@ -195,6 +195,10 @@ const Dashboard = () => {
             : ''
     }
     alt={show.movie?.title || 'Movie poster'}
+    width="500"
+    height="750"
+    loading="lazy"
+    decoding="async"
     onError={(e) => {
         console.log('Image failed to load:', e.currentTarget.src);
     }}
